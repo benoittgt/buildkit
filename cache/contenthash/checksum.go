@@ -340,6 +340,9 @@ func (cc *cacheContext) HandleChange(kind fsutil.ChangeKind, p string, fi os.Fil
 	if kind == fsutil.ChangeKindDelete {
 		v, ok := cc.txn.Delete(k)
 		if ok {
+			if v.Type == CacheRecordTypeFile {
+				fmt.Fprintf(os.Stderr, "[cache] file deleted: %s\n", p)
+			}
 			deleteDir(v)
 		}
 		d := path.Dir(p)
@@ -387,8 +390,12 @@ func (cc *cacheContext) HandleChange(kind fsutil.ChangeKind, p string, fi os.Fil
 	cr.Digest = string(h.Digest())
 
 	// Log file changes for cache debugging
-	if ok && v.Type == CacheRecordTypeFile && cr.Type == CacheRecordTypeFile && v.Digest != cr.Digest {
-		fmt.Fprintf(os.Stderr, "[cache] file changed: %s\n", p)
+	if cr.Type == CacheRecordTypeFile {
+		if !ok {
+			fmt.Fprintf(os.Stderr, "[cache] file added: %s\n", p)
+		} else if v.Type == CacheRecordTypeFile && v.Digest != cr.Digest {
+			fmt.Fprintf(os.Stderr, "[cache] file changed: %s\n", p)
+		}
 	}
 
 	// if we receive a hardlink just use the digest of the source
