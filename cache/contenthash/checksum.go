@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"time"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -201,6 +202,15 @@ func (md cacheMetadata) SetContentHash(dt []byte) error {
 	return md.SetExternal(keyContentHash, dt)
 }
 
+func (cc *cacheContext) logCacheChange(action, path string) {
+	ts := time.Now().Format("15:04:05.000")
+	layer := cc.md.GetDescription()
+	if layer == "" {
+		layer = cc.md.ID()
+	}
+	fmt.Fprintf(os.Stderr, "[cache] %s file %s: %s (layer: %s)\n", ts, action, path, layer)
+}
+
 type mount struct {
 	mountable cache.Mountable
 	mountPath string
@@ -341,7 +351,7 @@ func (cc *cacheContext) HandleChange(kind fsutil.ChangeKind, p string, fi os.Fil
 		v, ok := cc.txn.Delete(k)
 		if ok {
 			if v.Type == CacheRecordTypeFile {
-				fmt.Fprintf(os.Stderr, "[cache] file deleted: %s\n", p)
+				cc.logCacheChange("deleted", p)
 			}
 			deleteDir(v)
 		}
@@ -392,9 +402,9 @@ func (cc *cacheContext) HandleChange(kind fsutil.ChangeKind, p string, fi os.Fil
 	// Log file changes for cache debugging
 	if cr.Type == CacheRecordTypeFile {
 		if !ok {
-			fmt.Fprintf(os.Stderr, "[cache] file added: %s\n", p)
+			cc.logCacheChange("added", p)
 		} else if v.Type == CacheRecordTypeFile && v.Digest != cr.Digest {
-			fmt.Fprintf(os.Stderr, "[cache] file changed: %s\n", p)
+			cc.logCacheChange("changed", p)
 		}
 	}
 
