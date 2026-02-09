@@ -586,12 +586,24 @@ func (e *edge) processCacheMapReq() {
 			if err != nil {
 				bklog.G(context.TODO()).Error(errors.Wrap(err, "invalid query response")) // make the build fail for this error
 			} else {
+				if len(keys) == 0 && debugCacheInvalidation {
+					bklog.G(context.TODO()).
+						WithField("vertex_name", e.edge.Vertex.Name()).
+						WithField("vertex_digest", e.edge.Vertex.Digest()).
+						Info("[cache:miss] no matching cache keys")
+				}
 				for _, k := range keys {
 					k.vtx = e.edge.Vertex.Digest()
 					records, err := e.op.Cache().Records(context.Background(), k)
 					if err != nil {
 						bklog.G(context.TODO()).Errorf("error receiving cache records: %v", err)
 						continue
+					}
+					if len(records) == 0 && debugCacheInvalidation {
+						bklog.G(context.TODO()).
+							WithField("vertex_name", e.edge.Vertex.Name()).
+							WithField("key_id", k.ID).
+							Info("[cache:miss] cache key matched but data missing")
 					}
 
 					for _, r := range records {
