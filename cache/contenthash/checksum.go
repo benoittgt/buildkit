@@ -3,6 +3,7 @@ package contenthash
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -384,6 +385,11 @@ func (cc *cacheContext) HandleChange(kind fsutil.ChangeKind, p string, fi os.Fil
 		p += "/"
 	}
 	cr.Digest = string(h.Digest())
+
+	// Log file changes for cache debugging
+	if ok && v.Type == CacheRecordTypeFile && cr.Type == CacheRecordTypeFile && v.Digest != cr.Digest {
+		fmt.Fprintf(os.Stderr, "[cache] file changed: %s\n", p)
+	}
 
 	// if we receive a hardlink just use the digest of the source
 	// note that the source may be called later because data writing is async
