@@ -200,6 +200,28 @@ func (md cacheMetadata) SetContentHash(dt []byte) error {
 	return md.SetExternal(keyContentHash, dt)
 }
 
+// GetCachedFileRecords retrieves the previously cached file records for a reference.
+// Returns a map of file path → digest string, or nil if no cache exists.
+func GetCachedFileRecords(md cache.RefMetadata) (map[string]string, error) {
+	dt, err := cacheMetadata{md}.GetContentHash()
+	if err != nil || dt == nil {
+		return nil, nil
+	}
+
+	var l CacheRecords
+	if err := l.UnmarshalVT(dt); err != nil {
+		return nil, err
+	}
+
+	files := make(map[string]string, len(l.Paths))
+	for _, p := range l.Paths {
+		if p.Record != nil && p.Record.Type == CacheRecordType_FILE {
+			files[p.Path] = p.Record.Digest
+		}
+	}
+	return files, nil
+}
+
 type mount struct {
 	mountable cache.Mountable
 	mountPath string
