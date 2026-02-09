@@ -17,6 +17,7 @@ import (
 	simplelru "github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/moby/buildkit/cache"
 	"github.com/moby/buildkit/session"
+	"github.com/moby/buildkit/util/bklog"
 	"github.com/moby/buildkit/snapshot"
 	"github.com/moby/buildkit/util/cachedigest"
 	"github.com/moby/locker"
@@ -32,7 +33,15 @@ var errNotFound = errors.Errorf("not found")
 var (
 	defaultManager     *cacheManager
 	defaultManagerOnce sync.Once
+
+	debugCacheInvalidation = true
 )
+
+func init() {
+	if os.Getenv("BUILDKIT_CACHE_DEBUG") == "1" {
+		debugCacheInvalidation = true
+	}
+}
 
 func getDefaultManager() *cacheManager {
 	defaultManagerOnce.Do(func() {
@@ -220,6 +229,51 @@ func GetCachedFileRecords(md cache.RefMetadata) (map[string]string, error) {
 		}
 	}
 	return files, nil
+}
+
+func (cc *cacheContext) logFileChanges(ctx context.Context, prefix string, includedPaths []*includedPath) {
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+
+	newFiles := make(map[string]string, len(includedPaths))
+	for _, ip := range includedPaths {
+		if ip.record != nil && ip.record.Type == CacheRecordType_FILE {
+			relativePath := strings.TrimPrefix(ip.path, prefix)
+			if relativePath == "" {
+				relativePath = ip.path
+			}
+			newFiles[relativePath] = ip.record.Digest
+		}
+	}
+
+	oldFiles := make(map[string]string)
+	cc.tree.Root().Walk(func(k []byte, v *CacheRecord) bool {
+		if v != nil && v.Type == CacheRecordType_FILE {
+			p := convertKeyToPath(k)
+			relativePath := strings.TrimPrefix(p, prefix)
+			if relativePath == "" {
+				relativePath = p
+			}
+			oldFiles[relativePath] = v.Digest
+		}
+		return false
+	})
+
+	for p, newDigest := range newFiles {
+		if oldDigest, exists := oldFiles[p]; exists {
+			if oldDigest != newDigest {
+				bklog.G(ctx).WithField("file", p).WithField("status", "modified").Info("[cache:file] content changed")
+			}
+		} else {
+			bklog.G(ctx).WithField("file", p).WithField("status", "added").Info("[cache:file] new file")
+		}
+	}
+
+	for p := range oldFiles {
+		if _, exists := newFiles[p]; !exists {
+			bklog.G(ctx).WithField("file", p).WithField("status", "deleted").Info("[cache:file] file removed")
+		}
+	}
 }
 
 type mount struct {
@@ -464,6 +518,10 @@ func (cc *cacheContext) Checksum(ctx context.Context, mountable cache.Mountable,
 			}
 			includedPaths[i].record = &CacheRecord{Digest: string(dgst)}
 		}
+	}
+
+	if debugCacheInvalidation {
+		cc.logFileChanges(ctx, prefix, includedPaths)
 	}
 
 	if len(includedPaths) == 0 {
