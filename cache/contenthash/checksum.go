@@ -3,11 +3,9 @@ package contenthash
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path"
-	"time"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -20,6 +18,7 @@ import (
 	"github.com/moby/buildkit/cache"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/snapshot"
+	"github.com/moby/buildkit/util/bklog"
 	"github.com/moby/buildkit/util/cachedigest"
 	"github.com/moby/locker"
 	"github.com/moby/patternmatcher"
@@ -186,6 +185,9 @@ type cacheContext struct {
 	node     *iradix.Node[*CacheRecord]
 	dirtyMap map[string]struct{}
 	linkMap  map[string][][]byte
+
+	// cache debugging: collect file changes to publish later
+	fileChanges []string
 }
 
 type cacheMetadata struct {
@@ -202,13 +204,8 @@ func (md cacheMetadata) SetContentHash(dt []byte) error {
 	return md.SetExternal(keyContentHash, dt)
 }
 
-func (cc *cacheContext) logCacheChange(action, path string) {
-	ts := time.Now().Format("15:04:05.000")
-	layer := cc.md.GetDescription()
-	if layer == "" {
-		layer = cc.md.ID()
-	}
-	fmt.Fprintf(os.Stderr, "[cache] %s file %s: %s (layer: %s)\n", ts, action, path, layer)
+func (cc *cacheContext) collectFileChange(action, path string) {
+	cc.fileChanges = append(cc.fileChanges, action+": "+path)
 }
 
 type mount struct {
@@ -285,6 +282,19 @@ func (cc *cacheContext) save() error {
 	cc.mu.Lock()
 	defer cc.mu.Unlock()
 
+	// Publish collected file changes
+	if len(cc.fileChanges) > 0 {
+		layer := cc.md.GetDescription()
+		if layer == "" {
+			layer = cc.md.ID()
+		}
+		bklog.G(context.TODO()).
+			WithField("layer", layer).
+			WithField("changes", cc.fileChanges).
+			Info("[cache] file changes detected")
+		cc.fileChanges = nil
+	}
+
 	if cc.txn != nil {
 		cc.commitActiveTransaction()
 	}
@@ -351,7 +361,7 @@ func (cc *cacheContext) HandleChange(kind fsutil.ChangeKind, p string, fi os.Fil
 		v, ok := cc.txn.Delete(k)
 		if ok {
 			if v.Type == CacheRecordTypeFile {
-				cc.logCacheChange("deleted", p)
+				cc.collectFileChange("deleted", p)
 			}
 			deleteDir(v)
 		}
@@ -402,9 +412,9 @@ func (cc *cacheContext) HandleChange(kind fsutil.ChangeKind, p string, fi os.Fil
 	// Log file changes for cache debugging
 	if cr.Type == CacheRecordTypeFile {
 		if !ok {
-			cc.logCacheChange("added", p)
+			cc.collectFileChange("added", p)
 		} else if v.Type == CacheRecordTypeFile && v.Digest != cr.Digest {
-			cc.logCacheChange("changed", p)
+			cc.collectFileChange("changed", p)
 		}
 	}
 

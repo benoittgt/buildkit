@@ -37,19 +37,15 @@ docker logs buildx_buildkit_cache-debug0 2>&1 | grep '\[cache'
 
 ### File Change Logs
 
-When files in your build context change, you'll see:
+When files in your build context change, you'll see structured logs with all changes grouped:
 
 ```
-[cache] 14:32:01.123 file added: /src/newfile.ts (layer: local source for context)
-[cache] 14:32:01.456 file changed: /src/app.ts (layer: local source for context)
-[cache] 14:32:01.789 file deleted: /src/oldfile.ts (layer: local source for context)
+level=info msg="[cache] file changes detected" changes="[added: /src/newfile.ts changed: /src/app.ts]" layer="local source for context"
 ```
 
 Each log includes:
-- **Timestamp** - when the change was detected
-- **Action** - `added`, `changed`, or `deleted`
-- **Path** - the file path
-- **Layer** - which build layer is affected
+- **changes** - list of all file changes (`added`, `changed`, `deleted`)
+- **layer** - which build layer is affected (e.g., "local source for context")
 
 ### Cache Miss Logs
 
@@ -78,7 +74,7 @@ docker buildx build --builder=cache-debug -t myapp .
 
 # Check which file triggered invalidation
 docker logs buildx_buildkit_cache-debug0 2>&1 | grep '\[cache\]'
-# Output: [cache] 14:32:05.123 file changed: /src/app.ts (layer: local source for context)
+# Output: level=info msg="[cache] file changes detected" changes="[changed: /src/app.ts]" layer="local source for context"
 ```
 
 ## Tips
