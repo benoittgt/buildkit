@@ -1171,9 +1171,14 @@ func (s *sharedOp) Exec(ctx context.Context, inputs []Result) (outputs []Result,
 
 		// no cache hit. start evaluating the node
 		if debugCacheInvalidation {
+			reason := "no_cache_match"
+			if s.st.vtx.Options().IgnoreCache {
+				reason = "cache_disabled"
+			}
 			bklog.G(ctx).
 				WithField("vertex_name", s.st.vtx.Name()).
 				WithField("vertex_digest", s.st.vtx.Digest()).
+				WithField("reason", reason).
 				Info("[cache:miss] no cache hit, executing operation")
 		}
 		span, ctx := tracing.StartSpan(ctx, s.st.vtx.Name(), trace.WithAttributes(attribute.String("vertex", s.st.vtx.Digest().String())))
