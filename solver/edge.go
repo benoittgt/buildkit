@@ -590,8 +590,7 @@ func (e *edge) processCacheMapReq() {
 					bklog.G(context.TODO()).
 						WithField("vertex_name", e.edge.Vertex.Name()).
 						WithField("vertex_digest", e.edge.Vertex.Digest()).
-						WithField("cache_map_digest", e.cacheMap.Digest).
-						Info("[cache:miss] no matching cache keys (inputs changed or first build)")
+						Info("[cache:miss] no matching cache keys")
 				}
 				for _, k := range keys {
 					k.vtx = e.edge.Vertex.Digest()

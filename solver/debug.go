@@ -315,39 +315,3 @@ func debugSchedulerSkipInputRequestBasedOnDepState(e *edge, dep *dep, desiredSta
 			Debug("skip input request based on dep state")
 	}
 }
-
-// FileChange represents a change detected between old and new file lists
-type FileChange struct {
-	Path   string
-	Status string // "added", "deleted", "modified"
-}
-
-// DiffFileRecords compares old and new file records and returns the changes.
-// oldFiles and newFiles are maps of path → digest.
-func DiffFileRecords(oldFiles, newFiles map[string]string) []FileChange {
-	if !debugCacheInvalidation {
-		return nil
-	}
-
-	var changes []FileChange
-
-	// Check for added and modified files
-	for path, newDigest := range newFiles {
-		if oldDigest, exists := oldFiles[path]; exists {
-			if oldDigest != newDigest {
-				changes = append(changes, FileChange{Path: path, Status: "modified"})
-			}
-		} else {
-			changes = append(changes, FileChange{Path: path, Status: "added"})
-		}
-	}
-
-	// Check for deleted files
-	for path := range oldFiles {
-		if _, exists := newFiles[path]; !exists {
-			changes = append(changes, FileChange{Path: path, Status: "deleted"})
-		}
-	}
-
-	return changes
-}
