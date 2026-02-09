@@ -12,13 +12,17 @@ import (
 )
 
 var (
-	debugScheduler      = false // TODO: replace with logs in build trace
-	debugSchedulerSteps = sync.OnceValue(parseSchedulerDebugSteps)
+	debugScheduler          = false // TODO: replace with logs in build trace
+	debugSchedulerSteps     = sync.OnceValue(parseSchedulerDebugSteps)
+	debugCacheInvalidation  = true // Cache invalidation debugging (hardcoded for testing)
 )
 
 func init() {
 	if os.Getenv("BUILDKIT_SCHEDULER_DEBUG") == "1" {
 		debugScheduler = true
+	}
+	if os.Getenv("BUILDKIT_CACHE_DEBUG") == "1" {
+		debugCacheInvalidation = true
 	}
 }
 

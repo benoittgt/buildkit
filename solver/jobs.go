@@ -1170,6 +1170,12 @@ func (s *sharedOp) Exec(ctx context.Context, inputs []Result) (outputs []Result,
 		ctx = withAncestorCacheOpts(ctx, s.st)
 
 		// no cache hit. start evaluating the node
+		if debugCacheInvalidation {
+			bklog.G(ctx).
+				WithField("vertex_name", s.st.vtx.Name()).
+				WithField("vertex_digest", s.st.vtx.Digest()).
+				Info("[cache:miss] no cache hit, executing operation")
+		}
 		span, ctx := tracing.StartSpan(ctx, s.st.vtx.Name(), trace.WithAttributes(attribute.String("vertex", s.st.vtx.Digest().String())))
 		s.st.execSpan = span
 		notifyCompleted := notifyStarted(ctx, &s.st.clientVertex, false)
