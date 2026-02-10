@@ -73,17 +73,27 @@ docker buildx create \
 
 ## Distributing Your Custom BuildKit
 
-You can push your custom BuildKit to Docker Hub or any registry:
+### Multi-Architecture (for CI/CD)
+
+Build for AMD64 + ARM64 and push to your registry:
 
 ```bash
-# Tag with your username
-docker tag moby/buildkit:local benoittigeotlifen/buildkit-cache-debug:latest
+docker buildx bake image-cross \
+  --set "image-cross.tags=benoittigeotlifen/buildkit-cache-debug:latest" \
+  --set "image-cross.platform=linux/amd64,linux/arm64" \
+  --push
+```
 
-# Push to Docker Hub
+Verify: `docker buildx imagetools inspect benoittigeotlifen/buildkit-cache-debug:latest`
+
+### Single Architecture (local only)
+
+```bash
+docker tag moby/buildkit:local benoittigeotlifen/buildkit-cache-debug:latest
 docker push benoittigeotlifen/buildkit-cache-debug:latest
 ```
 
-Others can then use it:
+### Using the Published Image
 
 ```bash
 docker buildx create \
@@ -183,3 +193,11 @@ Once you identify which files trigger cache invalidation, consider:
 2. **Use `.dockerignore`**: Exclude files that shouldn't affect builds
 3. **Multi-stage builds**: Separate build dependencies from runtime
 4. **Copy selectively**: `COPY package*.json ./` before `COPY . .`
+
+
+### Related
+
+- https://github.com/orisano/dlayer
+- https://github.com/moby/moby/issues/12641
+- https://github.com/moul/docker-diff
+- https://github.com/GoogleContainerTools/container-diff
