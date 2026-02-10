@@ -4,33 +4,89 @@ This guide explains how to debug Docker layer cache invalidation to understand *
 
 ## Quick Start
 
-### 1. Build custom BuildKit
+### 1. Build custom BuildKit (once)
 
 ```bash
 cd /path/to/buildkit
 make images
 ```
 
-### 2. Create a builder with custom image
+This creates `moby/buildkit:local` Docker image with your custom code.
+
+### 2. Use in any project (easy way)
 
 ```bash
+# Source the helper script
+source /path/to/buildkit/scripts/use-local-buildkit.sh
+
+# Build your images (automatically uses custom BuildKit)
+docker buildx build -t myimage .
+
+# Check cache logs
+cache-logs
+```
+
+### 2b. Use in any project (manual way)
+
+```bash
+# Create a builder with custom image
 docker buildx create \
   --driver=docker-container \
   --name=cache-debug \
   --driver-opt image=moby/buildkit:local \
   --bootstrap
-```
 
-### 3. Run your build
+# Use it
+docker buildx use cache-debug
 
-```bash
-docker buildx build --builder=cache-debug --progress=plain -t myimage .
-```
+# Build
+docker buildx build --progress=plain -t myimage .
 
-### 4. Check the logs
-
-```bash
+# Check logs
 docker logs buildx_buildkit_cache-debug0 2>&1 | grep '\[cache'
+```
+
+## How It Works
+
+```
+┌─────────────────┐     make images      ┌──────────────────────┐
+│  BuildKit Code  │ ──────────────────▶  │ moby/buildkit:local  │
+│  (Go source)    │                      │ (Docker image)       │
+└─────────────────┘                      └──────────────────────┘
+                                                   │
+                                                   ▼
+┌─────────────────┐   --driver-opt       ┌──────────────────────┐
+│  docker buildx  │ ◀───────────────────│ buildx builder       │
+│  build ...      │   image=...local     │ (container running   │
+└─────────────────┘                      │  your custom image)  │
+                                         └──────────────────────┘
+```
+
+- `make images` compiles Go code and builds a Docker image
+- `--driver-opt image=moby/buildkit:local` tells buildx to use YOUR image
+- The builder is a container running `buildkitd` with your changes
+- Logs go to the container's stderr (use `docker logs` to see them)
+
+## Distributing Your Custom BuildKit
+
+You can push your custom BuildKit to Docker Hub or any registry:
+
+```bash
+# Tag with your username
+docker tag moby/buildkit:local YOUR_USERNAME/buildkit-cache-debug:latest
+
+# Push to Docker Hub
+docker push YOUR_USERNAME/buildkit-cache-debug:latest
+```
+
+Others can then use it:
+
+```bash
+docker buildx create \
+  --driver=docker-container \
+  --name=cache-debug \
+  --driver-opt image=YOUR_USERNAME/buildkit-cache-debug:latest \
+  --bootstrap
 ```
 
 ## Log Format
