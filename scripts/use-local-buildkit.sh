@@ -2,28 +2,30 @@
 # Use custom BuildKit with cache debugging in any project
 #
 # Usage:
-#   1. Build custom BuildKit (once):
-#      cd /path/to/buildkit && make images
-#
-#   2. In your project, source this script:
+#   1. In your project, source this script:
 #      source /path/to/buildkit/scripts/use-local-buildkit.sh
 #
-#   3. Build your images:
+#   2. Build your images:
 #      docker buildx build -t myapp .
 #
-#   4. Check cache logs:
+#   3. Check cache logs:
 #      cache-logs
+#
+# Environment variables:
+#   BUILDKIT_IMAGE - custom BuildKit image (default: benoittigeotlifen/buildkit-cache-debug:latest)
+#   BUILDKIT_BUILDER_NAME - builder name (default: cache-debug)
 
 BUILDER_NAME="${BUILDKIT_BUILDER_NAME:-cache-debug}"
+BUILDKIT_IMAGE="${BUILDKIT_IMAGE:-benoittigeotlifen/buildkit-cache-debug:latest}"
 
 # Create builder with custom BuildKit if it doesn't exist
 setup-builder() {
     if ! docker buildx inspect "$BUILDER_NAME" &>/dev/null; then
-        echo "Creating builder '$BUILDER_NAME' with custom BuildKit..."
+        echo "Creating builder '$BUILDER_NAME' with image '$BUILDKIT_IMAGE'..."
         docker buildx create \
             --driver=docker-container \
             --name="$BUILDER_NAME" \
-            --driver-opt image=moby/buildkit:local \
+            --driver-opt image="$BUILDKIT_IMAGE" \
             --bootstrap
     else
         echo "Builder '$BUILDER_NAME' already exists"

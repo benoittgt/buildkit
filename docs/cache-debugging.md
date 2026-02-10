@@ -4,46 +4,50 @@ This guide explains how to debug Docker layer cache invalidation to understand *
 
 ## Quick Start
 
-### 1. Build custom BuildKit (once)
+### Option A: Use published image (easiest)
 
 ```bash
-cd /path/to/buildkit
-make images
+# Create a builder with cache debugging
+docker buildx create \
+  --driver=docker-container \
+  --name=cache-debug \
+  --driver-opt image=benoittigeotlifen/buildkit-cache-debug:latest \
+  --bootstrap
+
+# Use it for builds
+docker buildx use cache-debug
+docker buildx build -t myimage .
+
+# Check cache logs
+docker logs buildx_buildkit_cache-debug0 2>&1 | grep '\[cache'
 ```
 
-This creates `moby/buildkit:local` Docker image with your custom code.
-
-### 2. Use in any project (easy way)
+### Option B: Use helper script
 
 ```bash
-# Source the helper script
+# Source the helper script (auto-creates builder)
 source /path/to/buildkit/scripts/use-local-buildkit.sh
 
-# Build your images (automatically uses custom BuildKit)
+# Build your images
 docker buildx build -t myimage .
 
 # Check cache logs
 cache-logs
 ```
 
-### 2b. Use in any project (manual way)
+### Option C: Build from source
 
 ```bash
-# Create a builder with custom image
+# Clone and build
+cd /path/to/buildkit
+make images
+
+# Use local image
 docker buildx create \
   --driver=docker-container \
   --name=cache-debug \
   --driver-opt image=moby/buildkit:local \
   --bootstrap
-
-# Use it
-docker buildx use cache-debug
-
-# Build
-docker buildx build --progress=plain -t myimage .
-
-# Check logs
-docker logs buildx_buildkit_cache-debug0 2>&1 | grep '\[cache'
 ```
 
 ## How It Works
@@ -73,10 +77,10 @@ You can push your custom BuildKit to Docker Hub or any registry:
 
 ```bash
 # Tag with your username
-docker tag moby/buildkit:local YOUR_USERNAME/buildkit-cache-debug:latest
+docker tag moby/buildkit:local benoittigeotlifen/buildkit-cache-debug:latest
 
 # Push to Docker Hub
-docker push YOUR_USERNAME/buildkit-cache-debug:latest
+docker push benoittigeotlifen/buildkit-cache-debug:latest
 ```
 
 Others can then use it:
@@ -85,7 +89,7 @@ Others can then use it:
 docker buildx create \
   --driver=docker-container \
   --name=cache-debug \
-  --driver-opt image=YOUR_USERNAME/buildkit-cache-debug:latest \
+  --driver-opt image=benoittigeotlifen/buildkit-cache-debug:latest \
   --bootstrap
 ```
 
